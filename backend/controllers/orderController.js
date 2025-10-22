@@ -13,7 +13,16 @@ const VALID_STATUS_TRANSITIONS = {
 
 exports.createOrder = async (req, res) => {
   try {
-    const { items, deliveryAddress, deliveryInstructions, customerPhone } = req.body;
+    const { 
+      items, 
+      deliveryAddress, 
+      deliveryInstructions, 
+      customerPhone,
+      promoCode,
+      loyaltyPointsToUse,
+      scheduledDeliveryTime,
+      restaurantId 
+    } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'Order must contain at least one item' });
@@ -54,20 +63,85 @@ exports.createOrder = async (req, res) => {
     const deliveryFee = 5.00;
     totalAmount += deliveryFee;
 
+    // Apply promo code if provided
+    let promoCodeId = null;
+    let discountAmount = 0;
+
+    if (promoCode) {
+      const { PromoCode, PromoCodeUsage } = require('../models');
+      const promo = await PromoCode.findOne({
+        where: { code: promoCode.toUpperCase(), isActive: true }
+      });
+
+      if (promo) {
+        // Validate promo code
+        const now = new Date();
+        if (now >= new Date(promo.validFrom) && now <= new Date(promo.validUntil)) {
+          if (totalAmount >= promo.minOrderAmount) {
+            const usageCount = await PromoCodeUsage.count({
+              where: { promoCodeId: promo.id, customerId: req.user.id }
+            });
+
+            if (usageCount < promo.maxUsagePerCustomer) {
+              // Calculate discount
+              if (promo.discountType === 'percentage') {
+                discountAmount = (totalAmount * promo.discountValue) / 100;
+                if (promo.maxDiscountAmount && discountAmount > promo.maxDiscountAmount) {
+                  discountAmount = parseFloat(promo.maxDiscountAmount);
+                }
+              } else if (promo.discountType === 'fixed_amount') {
+                discountAmount = parseFloat(promo.discountValue);
+              } else if (promo.discountType === 'free_delivery') {
+                discountAmount = deliveryFee;
+              }
+
+              promoCodeId = promo.id;
+              totalAmount -= discountAmount;
+            }
+          }
+        }
+      }
+    }
+
+    // Apply loyalty points if provided
+    let loyaltyPointsUsed = 0;
+    let loyaltyDiscount = 0;
+
+    if (loyaltyPointsToUse && loyaltyPointsToUse > 0) {
+      const { LoyaltyProgram } = require('../models');
+      const loyaltyProgram = await LoyaltyProgram.findOne({
+        where: { customerId: req.user.id }
+      });
+
+      if (loyaltyProgram && loyaltyProgram.points >= loyaltyPointsToUse) {
+        loyaltyPointsUsed = loyaltyPointsToUse;
+        loyaltyDiscount = loyaltyPointsToUse * 0.01; // 100 points = $1
+        totalAmount -= loyaltyDiscount;
+        discountAmount += loyaltyDiscount;
+      }
+    }
+
     // Calculate estimated delivery time
     const maxPrepTime = Math.max(...menuItems.map(item => item.preparationTime || 15));
-    const estimatedDeliveryTime = new Date(Date.now() + (maxPrepTime + 30) * 60000);
+    const estimatedDeliveryTime = scheduledDeliveryTime 
+      ? new Date(scheduledDeliveryTime)
+      : new Date(Date.now() + (maxPrepTime + 30) * 60000);
 
     // Create order
     const order = await Order.create({
       customerId: req.user.id,
+      restaurantId: restaurantId || null,
       totalAmount,
       deliveryFee,
       deliveryAddress,
       deliveryInstructions,
       customerPhone,
       estimatedDeliveryTime,
-      status: 'pending'
+      scheduledDeliveryTime: scheduledDeliveryTime || null,
+      promoCodeId,
+      discountAmount,
+      loyaltyPointsUsed,
+      status: scheduledDeliveryTime ? 'paid' : 'pending' // Auto-paid if scheduled
     });
 
     // Create order items
@@ -76,6 +150,42 @@ exports.createOrder = async (req, res) => {
         OrderItem.create({ ...item, orderId: order.id })
       )
     );
+
+    // Record promo code usage if applied
+    if (promoCodeId) {
+      const { PromoCodeUsage, PromoCode } = require('../models');
+      await PromoCodeUsage.create({
+        promoCodeId,
+        orderId: order.id,
+        customerId: req.user.id,
+        discountAmount
+      });
+
+      // Increment promo code usage count
+      await PromoCode.increment('currentUsageCount', { where: { id: promoCodeId } });
+    }
+
+    // Deduct loyalty points if used
+    if (loyaltyPointsUsed > 0) {
+      const { LoyaltyProgram, LoyaltyTransaction } = require('../models');
+      const loyaltyProgram = await LoyaltyProgram.findOne({
+        where: { customerId: req.user.id }
+      });
+
+      await loyaltyProgram.update({
+        points: loyaltyProgram.points - loyaltyPointsUsed,
+        totalPointsRedeemed: loyaltyProgram.totalPointsRedeemed + loyaltyPointsUsed,
+        lastPointsRedeemedAt: new Date()
+      });
+
+      await LoyaltyTransaction.create({
+        loyaltyProgramId: loyaltyProgram.id,
+        orderId: order.id,
+        type: 'redeemed',
+        points: -loyaltyPointsUsed,
+        description: `Redeemed ${loyaltyPointsUsed} points for $${loyaltyDiscount.toFixed(2)} discount`
+      });
+    }
 
     // Create delivery record
     await Delivery.create({
@@ -205,6 +315,16 @@ exports.updateOrderStatus = async (req, res) => {
       }
     } else if (status === 'delivered') {
       await order.update({ actualDeliveryTime: new Date() });
+
+      // Award loyalty points for completed order
+      const { earnPoints } = require('./loyaltyController');
+      const result = await earnPoints(order.customerId, order.id, parseFloat(order.totalAmount));
+      
+      if (result) {
+        await order.update({
+          loyaltyPointsEarned: result.points
+        });
+      }
     }
 
     const updatedOrder = await Order.findByPk(order.id, {

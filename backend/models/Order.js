@@ -15,6 +15,38 @@ const Order = sequelize.define('Order', {
       key: 'id'
     }
   },
+  restaurantId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Restaurants',
+      key: 'id'
+    }
+  },
+  promoCodeId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'PromoCodes',
+      key: 'id'
+    }
+  },
+  discountAmount: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  loyaltyPointsUsed: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  loyaltyPointsEarned: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  scheduledDeliveryTime: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   status: {
     type: DataTypes.ENUM('pending', 'paid', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'),
     defaultValue: 'pending',

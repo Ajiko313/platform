@@ -13,6 +13,12 @@ const orderRoutes = require('./routes/orders');
 const deliveryRoutes = require('./routes/deliveries');
 const paymentRoutes = require('./routes/payments');
 const telegramRoutes = require('./routes/telegram');
+const reviewRoutes = require('./routes/reviews');
+const promoCodeRoutes = require('./routes/promoCodes');
+const restaurantRoutes = require('./routes/restaurants');
+const loyaltyRoutes = require('./routes/loyalty');
+const analyticsRoutes = require('./routes/analytics');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const server = http.createServer(app);
@@ -43,6 +49,12 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/telegram', telegramRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/promo-codes', promoCodeRoutes);
+app.use('/api/restaurants', restaurantRoutes);
+app.use('/api/loyalty', loyaltyRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -59,6 +71,9 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
+// Initialize scheduler for scheduled deliveries
+const schedulerService = require('./services/schedulerService');
+
 // Initialize database and start server
 async function startServer() {
   try {
@@ -69,6 +84,10 @@ async function startServer() {
     // Sync models (in production, use migrations)
     await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
     console.log('✅ Database models synchronized');
+
+    // Start scheduler for scheduled deliveries
+    schedulerService.start();
+    console.log('✅ Scheduler service started');
 
     // Create default admin user if doesn't exist
     const { User, MenuItem } = require('./models');

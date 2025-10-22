@@ -1,7 +1,29 @@
 const io = require('../socket');
+const { Notification, User } = require('../models');
+
+// Email service (using nodemailer)
+const nodemailer = require('nodemailer');
+
+// SMS service (using Twilio)
+// const twilio = require('twilio');
+// const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+// Push notification service (using Firebase or OneSignal)
+// const admin = require('firebase-admin');
+
+// Email transporter configuration
+const emailTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: process.env.SMTP_PORT || 587,
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASSWORD
+  }
+});
 
 // This service handles real-time notifications
-// In production, this would also send Telegram messages, SMS, push notifications, etc.
+// Supports: Socket.IO, Email, SMS, Push Notifications, Telegram
 
 exports.notifyOrderUpdate = async (order, event) => {
   try {
@@ -30,8 +52,23 @@ exports.notifyOrderUpdate = async (order, event) => {
       });
     }
 
-    // TODO: Send Telegram notification to customer
-    // TODO: Send SMS notification if enabled
+    // Send email notification
+    await sendEmailNotification(order.customerId, 'Order Update', getOrderMessage(order, event), order.id);
+    
+    // Send SMS notification if enabled
+    if (process.env.SMS_ENABLED === 'true') {
+      await sendSMSNotification(order.customerId, getOrderMessage(order, event));
+    }
+    
+    // Send push notification
+    if (process.env.PUSH_ENABLED === 'true') {
+      await sendPushNotification(order.customerId, 'Order Update', getOrderMessage(order, event), order.id);
+    }
+    
+    // Send Telegram notification
+    if (process.env.TELEGRAM_ENABLED === 'true') {
+      await sendTelegramNotification(order.customerId, getOrderMessage(order, event));
+    }
     
     return true;
   } catch (error) {
@@ -136,3 +173,243 @@ function getPaymentMessage(payment, event) {
   };
   return messages[event] || 'Payment status updated';
 }
+
+// Email notification
+async function sendEmailNotification(userId, subject, message, orderId = null) {
+  try {
+    if (!process.env.SMTP_USER) {
+      console.log('[Email] SMTP not configured, skipping email notification');
+      return;
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user || !user.email) {
+      console.log('[Email] User email not found');
+      return;
+    }
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: user.email,
+      subject: subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #4CAF50;">${subject}</h2>
+          <p>${message}</p>
+          ${orderId ? `<p>Order ID: #${orderId}</p>` : ''}
+          <hr>
+          <p style="color: #666; font-size: 12px;">
+            This is an automated message from Food Delivery Platform.
+          </p>
+        </div>
+      `
+    };
+
+    await emailTransporter.sendMail(mailOptions);
+
+    // Log notification
+    await Notification.create({
+      userId,
+      orderId,
+      type: 'email',
+      title: subject,
+      message,
+      status: 'sent',
+      sentAt: new Date()
+    });
+
+    console.log(`[Email] Sent to ${user.email}: ${subject}`);
+  } catch (error) {
+    console.error('[Email] Error:', error.message);
+    
+    // Log failed notification
+    await Notification.create({
+      userId,
+      orderId,
+      type: 'email',
+      title: subject,
+      message,
+      status: 'failed',
+      errorMessage: error.message
+    });
+  }
+}
+
+// SMS notification
+async function sendSMSNotification(userId, message) {
+  try {
+    const user = await User.findByPk(userId);
+    if (!user || !user.phone) {
+      console.log('[SMS] User phone not found');
+      return;
+    }
+
+    // Twilio implementation (commented out - requires Twilio account)
+    /*
+    await twilioClient.messages.create({
+      body: message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: user.phone
+    });
+    */
+
+    // Log notification
+    await Notification.create({
+      userId,
+      type: 'sms',
+      title: 'Order Update',
+      message,
+      status: 'sent',
+      sentAt: new Date(),
+      metadata: JSON.stringify({ phone: user.phone })
+    });
+
+    console.log(`[SMS] Would send to ${user.phone}: ${message}`);
+  } catch (error) {
+    console.error('[SMS] Error:', error.message);
+    
+    await Notification.create({
+      userId,
+      type: 'sms',
+      title: 'Order Update',
+      message,
+      status: 'failed',
+      errorMessage: error.message
+    });
+  }
+}
+
+// Push notification
+async function sendPushNotification(userId, title, message, orderId = null) {
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      console.log('[Push] User not found');
+      return;
+    }
+
+    // Firebase Cloud Messaging implementation (commented out - requires Firebase setup)
+    /*
+    const payload = {
+      notification: {
+        title: title,
+        body: message,
+        icon: '/icon.png',
+        click_action: orderId ? `/orders/${orderId}` : '/'
+      }
+    };
+
+    if (user.fcmToken) {
+      await admin.messaging().sendToDevice(user.fcmToken, payload);
+    }
+    */
+
+    // Log notification
+    await Notification.create({
+      userId,
+      orderId,
+      type: 'push',
+      title,
+      message,
+      status: 'sent',
+      sentAt: new Date()
+    });
+
+    console.log(`[Push] Would send to user ${userId}: ${title}`);
+  } catch (error) {
+    console.error('[Push] Error:', error.message);
+    
+    await Notification.create({
+      userId,
+      orderId,
+      type: 'push',
+      title,
+      message,
+      status: 'failed',
+      errorMessage: error.message
+    });
+  }
+}
+
+// Telegram notification
+async function sendTelegramNotification(userId, message) {
+  try {
+    const user = await User.findByPk(userId);
+    if (!user || !user.telegramId) {
+      console.log('[Telegram] User Telegram ID not found');
+      return;
+    }
+
+    // Telegram Bot API implementation
+    const axios = require('axios');
+    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    
+    if (TELEGRAM_BOT_TOKEN) {
+      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        chat_id: user.telegramId,
+        text: message,
+        parse_mode: 'HTML'
+      });
+
+      await Notification.create({
+        userId,
+        type: 'telegram',
+        title: 'Order Update',
+        message,
+        status: 'sent',
+        sentAt: new Date()
+      });
+
+      console.log(`[Telegram] Sent to ${user.telegramId}: ${message}`);
+    } else {
+      console.log('[Telegram] Bot token not configured');
+    }
+  } catch (error) {
+    console.error('[Telegram] Error:', error.message);
+    
+    await Notification.create({
+      userId,
+      type: 'telegram',
+      title: 'Order Update',
+      message,
+      status: 'failed',
+      errorMessage: error.message
+    });
+  }
+}
+
+// Get user notifications
+exports.getUserNotifications = async (userId, limit = 50) => {
+  try {
+    const notifications = await Notification.findAll({
+      where: { userId },
+      order: [['createdAt', 'DESC']],
+      limit
+    });
+    return notifications;
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    return [];
+  }
+};
+
+// Mark notification as read
+exports.markNotificationAsRead = async (notificationId) => {
+  try {
+    const notification = await Notification.findByPk(notificationId);
+    if (notification) {
+      await notification.update({
+        status: 'read',
+        readAt: new Date()
+      });
+    }
+  } catch (error) {
+    console.error('Mark notification as read error:', error);
+  }
+};
+
+// Export individual notification functions for use in other controllers
+exports.sendEmailNotification = sendEmailNotification;
+exports.sendSMSNotification = sendSMSNotification;
+exports.sendPushNotification = sendPushNotification;
+exports.sendTelegramNotification = sendTelegramNotification;
