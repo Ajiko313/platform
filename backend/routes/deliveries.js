@@ -36,4 +36,32 @@ router.patch('/:id/status',
   deliveryController.updateDeliveryStatus
 );
 
+// GPS Tracking routes
+router.post('/:id/location',
+  authenticate,
+  authorize('delivery'),
+  [
+    body('latitude').isFloat({ min: -90, max: 90 }),
+    body('longitude').isFloat({ min: -180, max: 180 }),
+    validate
+  ],
+  deliveryController.updateLocation
+);
+
+router.get('/:id/tracking',
+  authenticate,
+  deliveryController.getDeliveryTracking
+);
+
+router.post('/:id/eta',
+  authenticate,
+  authorize('delivery'),
+  [
+    body('estimatedMinutes').isInt({ min: 1 }),
+    body('distance').optional().isFloat({ min: 0 }),
+    validate
+  ],
+  deliveryController.updateEstimatedArrival
+);
+
 module.exports = router;

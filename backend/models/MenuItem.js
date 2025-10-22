@@ -7,6 +7,14 @@ const MenuItem = sequelize.define('MenuItem', {
     primaryKey: true,
     autoIncrement: true
   },
+  restaurantId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Restaurants',
+      key: 'id'
+    }
+  },
   name: {
     type: DataTypes.STRING,
     allowNull: false
@@ -42,6 +50,14 @@ const MenuItem = sequelize.define('MenuItem', {
   ingredients: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  rating: {
+    type: DataTypes.DECIMAL(2, 1),
+    defaultValue: 5.0
+  },
+  totalReviews: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   }
 });
 

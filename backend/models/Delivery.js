@@ -42,6 +42,20 @@ const Delivery = sequelize.define('Delivery', {
     allowNull: true,
     comment: 'JSON string of lat/lng'
   },
+  locationHistory: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'JSON array of location updates with timestamps'
+  },
+  estimatedArrival: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  distance: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    comment: 'Distance in kilometers'
+  },
   notes: {
     type: DataTypes.TEXT,
     allowNull: true
