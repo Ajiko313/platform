@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Driver App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Loading Screen -->
+        <div id="loading" class="screen active">
+            <div class="loading-spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <!-- Available Deliveries -->
+        <div id="available-screen" class="screen">
+            <div class="header">
+                <h1>🚚 Available Deliveries</h1>
+                <button onclick="loadDeliveries()" class="refresh-btn">↻</button>
+            </div>
+
+            <div class="driver-stats" id="driver-stats"></div>
+            <div id="available-list"></div>
+        </div>
+
+        <!-- My Deliveries -->
+        <div id="my-deliveries-screen" class="screen">
+            <div class="header">
+                <h1>📦 My Deliveries</h1>
+                <button onclick="loadMyDeliveries()" class="refresh-btn">↻</button>
+            </div>
+
+            <div id="my-deliveries-list"></div>
+        </div>
+
+        <!-- Delivery Details -->
+        <div id="details-screen" class="screen">
+            <div class="header">
+                <button onclick="showMyDeliveries()" class="back-btn">← Back</button>
+                <h1>Delivery Details</h1>
+            </div>
+
+            <div id="delivery-details"></div>
+            <div id="delivery-actions"></div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <button onclick="showAvailable()" class="nav-btn">
+            <span class="nav-icon">🔍</span>
+            <span class="nav-label">Available</span>
+        </button>
+        <button onclick="showMyDeliveries()" class="nav-btn">
+            <span class="nav-icon">📦</span>
+            <span class="nav-label">My Deliveries</span>
+        </button>
+    </nav>
+
+    <script src="app.js"></script>
+</body>
+</html>

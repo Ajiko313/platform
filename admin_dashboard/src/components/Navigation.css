@@ -1,0 +1,105 @@
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 250px;
+  height: 100vh;
+  background: #2c3e50;
+  color: white;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-header h2 {
+  margin-bottom: 8px;
+  font-size: 20px;
+}
+
+.connection-status {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.8;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.connected {
+  background-color: #28a745;
+  box-shadow: 0 0 8px #28a745;
+}
+
+.status-dot.disconnected {
+  background-color: #dc3545;
+}
+
+.nav-menu {
+  flex: 1;
+  list-style: none;
+  padding: 20px 0;
+}
+
+.nav-menu li {
+  margin-bottom: 4px;
+}
+
+.nav-menu li a {
+  display: block;
+  padding: 12px 20px;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.nav-menu li a:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.nav-menu li.active a {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border-left: 3px solid #007bff;
+}
+
+.sidebar-footer {
+  padding: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-info {
+  margin-bottom: 15px;
+}
+
+.user-info strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.user-info small {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+}
+
+.sidebar-footer .btn {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+  }
+}
